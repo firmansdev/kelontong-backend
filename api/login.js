@@ -72,7 +72,7 @@ router.post('/', async (req, res, next) => {
             });
         }
     } catch (error) {
-        // console.error('Error:', error);
+        console.error('Error:', error);
         res.status(500).json({
             status: 'Failed',
             message: 'Something went wrong'

@@ -4,6 +4,7 @@
 
 const connection = require("./connections")
 const escape = require('sqlutils/pg/escape');
+const jwt = require('jsonwebtoken');
 
 const sqlUpsertBuilder = function (params) {
     // why i accept params ?
@@ -25,10 +26,10 @@ const sqlUpsertBuilder = function (params) {
             counter += 1
             if (sizePayload == counter) {
                 baseSQLHeader += item + ")"
-                baseSQLValues += escape(params.payload[item].trim())+")"
+                baseSQLValues += escape(params.payload[item])+")"
             } else {
                 baseSQLHeader += item + ","
-                baseSQLValues += escape(params.payload[item].trim())+","
+                baseSQLValues += escape(params.payload[item])+","
             }
         }
         cleanSQL = baseSQLHeader + baseSQLValues, baseValues
@@ -49,16 +50,16 @@ const sqlUpsertBuilder = function (params) {
             if(typeof params.payload[item] === 'object' && params.payload[item] !== null) {
                 for (const itemDetail of Object.keys(params.payload[item])) {
                     if (sizePayload == counter) {
-                        baseSQLHeader += item + " = "+itemDetail+" +  " + escape(params.payload[item][itemDetail].trim())
+                        baseSQLHeader += item + " = "+itemDetail+" +  " + escape(params.payload[item][itemDetail])
                     } else {
-                        baseSQLHeader += item + " = "+itemDetail+" + "+escape(params.payload[item][itemDetail].trim())+", "
+                        baseSQLHeader += item + " = "+itemDetail+" + "+escape(params.payload[item][itemDetail])+", "
                     }
                 }
             } else {
                 if (sizePayload == counter) {
-                    baseSQLHeader += item + " = "+ escape(params.payload[item].trim())
+                    baseSQLHeader += item + " = "+ escape(params.payload[item])
                 } else {
-                    baseSQLHeader += item + " = "+ escape(params.payload[item].trim())+","
+                    baseSQLHeader += item + " = "+ escape(params.payload[item])+","
                 }
             }
         }
@@ -78,9 +79,9 @@ const sqlUpsertBuilder = function (params) {
             }
             counter += 1
             if (sizePayloadWhere == counter) {
-                baseSQLWhere += item + " " + condition + " " + escape(params.where[item].trim()) + " "
+                baseSQLWhere += item + " " + condition + " " + escape(params.where[item]) + " "
             } else {
-                baseSQLWhere += item + " " + condition + " "+  escape(params.where[item].trim()) + " " + operatorSingle + " "
+                baseSQLWhere += item + " " + condition + " "+  escape(params.where[item]) + " " + operatorSingle + " "
             }
         }
         cleanSQL = baseSQLHeader + baseSQLWhere, baseValues
@@ -94,6 +95,20 @@ const sqlUpsertBuilder = function (params) {
       status: "success",
       query: cleanSQL + ";"
     }
+}
+const authChecker = async function (params) {
+    // why i encapsulated jwt.verify to this function ?
+    // because if there is any changes regarding authentication checking, i just need alter this function.
+    return new Promise(async (resolve, reject) => {
+        try {
+            const token = params.token.split(' ')[1]; 
+            const result = jwt.verify(token, process.env.SECRET_KEY);
+            resolve(result)
+        } catch(error) {
+            console.log(error)
+            reject(error)
+        }
+    })
 }
 const transactionProcess = async function (params) {
     return new Promise(async (resolve, reject) => {
@@ -114,4 +129,4 @@ const transactionProcess = async function (params) {
 
 module.exports.sqlUpsertBuilder = sqlUpsertBuilder
 module.exports.transactionProcess = transactionProcess
-
+module.exports.authChecker = authChecker

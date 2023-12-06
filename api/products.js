@@ -1,6 +1,6 @@
 const express = require("express")
 const connection = require("../config/connections")
-const {transactionProcess, sqlUpsertBuilder} = require("../config/common-logic")
+const {transactionProcess, sqlUpsertBuilder, authChecker} = require("../config/common-logic")
 const router = express.Router();
 // const jwt = require('jsonwebtoken');
 const escape = require('sqlutils/pg/escape');
@@ -10,7 +10,7 @@ async function getData(search = ''){
     return new Promise(async (resolve, reject) => {
         try {
             let params = {}
-            params.query    = "SELECT id, name, description, price, stock, category_id, weight, width, length, height, image, sku FROM mas_category WHERE 1=1 "
+            params.query    = "SELECT id, name, description, price, stock, category_id, weight, width, length, height, image, sku FROM mas_products WHERE 1=1 "
             if(search) {
                 params.query += " AND sku LIKE "+escape("%"+search+"%")+" OR id LIKE "+escape("%"+search+"%")+" OR name LIKE "+escape("%"+search+"%")+" OR description LIKE "+escape("%"+search+"%")
             }
@@ -24,6 +24,11 @@ async function getData(search = ''){
 }
 router.get('/', async(req, res, next)=>{
     try {
+        const authPayload = {
+            token : req.headers['authorization']
+        }
+        await authChecker(authPayload)
+
         let result = await getData()
         res.status(200).json({
             status  : 'OK',
@@ -31,16 +36,29 @@ router.get('/', async(req, res, next)=>{
             message : 'Success fetch data'
         })
     } catch(error) {
-        res.status(500).json({
-            status  : 'Failed',
-            data    :  error,
-            message : 'Something wrong happened'
+        var statusCode = 500
+        var messages   = "Something Wrong Happened"
+        if (error.name === 'TokenExpiredError') {
+            messages = 'Token has expired!'
+            statusCode = 401
+        } else if(error.name === 'JsonWebTokenError') {
+            messages = 'Invalid token!'
+            statusCode = 401
+        }
+        res.status(statusCode).json({
+            status  :  'Failed',
+            data    :  error.message,
+            message :  messages
         })
     }
 })
 
 router.get('/:id', async(req, res, next)=>{
     try {
+        const authPayload = {
+            token : req.headers['authorization']
+        }
+        await authChecker(authPayload)
         const filter = req.params.id
         let result = await getData(filter)
         res.status(200).json({
@@ -49,17 +67,31 @@ router.get('/:id', async(req, res, next)=>{
             message : 'Success fetch data'
         })
     } catch(error) {
-        res.status(500).json({
+        var statusCode = 500
+        var messages   = "Something Wrong Happened"
+        if (error.name === 'TokenExpiredError') {
+            messages = 'Token has expired!'
+            statusCode = 401
+        } else if(error.name === 'JsonWebTokenError') {
+            messages = 'Invalid token!'
+            statusCode = 401
+        }
+        res.status(statusCode).json({
             status  : 'Failed',
             data    :  error,
-            message : 'Something wrong happened'
+            message :  messages
         })
     }
 })
 
-
 router.delete('/:id', async(req, res, next)=>{
     try {
+
+        const authPayload = {
+            token : req.headers['authorization']
+        }
+        await authChecker(authPayload)
+
         let params = {}
         const id = req.params.id
         if(!id) {
@@ -67,7 +99,7 @@ router.delete('/:id', async(req, res, next)=>{
                 message : "ID must be filled"
             })
         } 
-        params.query    = "DELETE FROM mas_category WHERE "
+        params.query    = "DELETE FROM mas_products WHERE "
         params.query += "id = "+escape(id)
         const result = await transactionProcess(params)
         res.status(200).json({
@@ -76,11 +108,20 @@ router.delete('/:id', async(req, res, next)=>{
             message : 'Success delete data'
         })
     } catch(error) {
+        var statusCode = 500
+        var messages   = "Something Wrong Happened"
+        if (error.name === 'TokenExpiredError') {
+            messages = 'Token has expired!'
+            statusCode = 401
+        } else if(error.name === 'JsonWebTokenError') {
+            messages = 'Invalid token!'
+            statusCode = 401
+        }
         console.log("error", error)
-        res.status(500).json({
+        res.status(statusCode).json({
             status  : 'Failed',
             data    :  error,
-            message : 'Something wrong happened'
+            message :  messages
         })
     }
 })
@@ -88,6 +129,11 @@ router.delete('/:id', async(req, res, next)=>{
 router.post('/', async(req, res, next)=>{
     const userInput = req.body
     try {
+        const authPayload = {
+            token : req.headers['authorization']
+        }
+        await authChecker(authPayload)
+        
         if(!userInput.created_by) {
             res.status(400).json({
                 message : "The creator must be filled"
@@ -95,7 +141,7 @@ router.post('/', async(req, res, next)=>{
         } 
         const insertParams = {
             type: "insert",
-            tableName: "mas_category",
+            tableName: "mas_products",
             ignoreInsert: false, 
             payload: {
               id: uuidv4(),
@@ -123,6 +169,14 @@ router.post('/', async(req, res, next)=>{
     } catch(error) {
         let errorMessages = 'Something Wrong'
         let statusCode    = 500
+        if (error.name === 'TokenExpiredError') {
+            errorMessages = 'Token has expired!'
+            statusCode = 401
+        } else if(error.name === 'JsonWebTokenError') {
+            errorMessages = 'Invalid token!'
+            statusCode = 401
+        }
+
         if (error.code === '23503') {
             statusCode = 422
             const cleanField = error.constraint.substring(3);
@@ -142,6 +196,11 @@ router.put('/:id', async(req, res, next)=>{
         let param = {}
         const id = req.params.id
         const userInput = req.body
+        const authPayload = {
+            token : req.headers['authorization']
+        }
+        await authChecker(authPayload)
+
         if(!userInput.updated_by) {
             res.status(400).json({
                 message : "The creator must be filled"
@@ -149,7 +208,7 @@ router.put('/:id', async(req, res, next)=>{
         } 
         const updateParams = {
             type: "update",
-            tableName: "mas_category",
+            tableName: "mas_products",
             payload: {
                 name: userInput.name,
                 description  : userInput.description,
@@ -179,11 +238,19 @@ router.put('/:id', async(req, res, next)=>{
         })
 
     } catch(error) {
-        console.log("error", error)
-        res.status(500).json({
+        var statusCode = 500
+        var messages   = "Something Wrong Happened"
+        if (error.name === 'TokenExpiredError') {
+            messages = 'Token has expired!'
+            statusCode = 401
+        } else if(error.name === 'JsonWebTokenError') {
+            messages = 'Invalid token!'
+            statusCode = 401
+        }
+        res.status(statusCode).json({
             status  : 'Failed',
             data    :  error,
-            message : 'Something wrong happened'
+            message :  messages
         })
     }
 })
