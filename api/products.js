@@ -101,6 +101,14 @@ router.post('/', async(req, res, next)=>{
               id: uuidv4(),
               name: userInput.name,
               description  : userInput.description,
+              price        : userInput.price,
+              category_id  : userInput.category_id,
+              weight       : userInput.weight,
+              width        : userInput.width,
+              length       : userInput.length,
+              height       : userInput.height,
+              image        : userInput.image,
+              sku          : userInput.sku,
               created_by   : userInput.created_by,
             }
         };
