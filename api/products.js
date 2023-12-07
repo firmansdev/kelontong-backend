@@ -10,10 +10,36 @@ async function getData(search = ''){
     return new Promise(async (resolve, reject) => {
         try {
             let params = {}
-            params.query    = "SELECT id, name, description, price, stock, category_id, weight, width, length, height, image, sku FROM mas_products WHERE 1=1 "
-            if(search) {
-                params.query += " AND sku LIKE "+escape("%"+search+"%")+" OR id LIKE "+escape("%"+search+"%")+" OR name LIKE "+escape("%"+search+"%")+" OR description LIKE "+escape("%"+search+"%")
-            }
+            params.query    = "SELECT id, name, description, price, stock, image FROM mas_products WHERE 1=1 "
+            if (search) {
+                params.query += `
+                  AND (
+                    LOWER(sku) LIKE LOWER(${escape('%' + search + '%')}) OR
+                    LOWER(id) LIKE LOWER(${escape('%' + search + '%')}) OR
+                    LOWER(name) LIKE LOWER(${escape('%' + search + '%')}) OR
+                    LOWER(description) LIKE LOWER(${escape('%' + search + '%')})
+                  )
+                `;
+              }
+            console.log("this is parma", params)
+            const result = await transactionProcess(params)
+            resolve(result.data)
+        } catch(error) {
+            console.log("error", error)
+            resolve(error)
+        }
+    })
+}
+async function getDetailData(id = ''){
+    return new Promise(async (resolve, reject) => {
+        try {
+            let params = {}
+            params.query    = `SELECT mp.id, mp.name, mp.description, mp.price, mp.stock, mp.category_id, 
+            mp.weight, mp.width, mp.length, mp.height, mp.image, mp.sku, mc.name as category_name 
+            FROM mas_products mp 
+            LEFT JOIN mas_category mc 
+            ON mc.id = mp.category_id 
+            WHERE mp.id =  `+escape(id)
             const result = await transactionProcess(params)
             resolve(result.data)
         } catch(error) {
@@ -48,6 +74,37 @@ router.get('/', async(req, res, next)=>{
         res.status(statusCode).json({
             status  :  'Failed',
             data    :  error.message,
+            message :  messages
+        })
+    }
+})
+
+router.get('/detailData/:id', async(req, res, next)=>{
+    try {
+        const authPayload = {
+            token : req.headers['authorization']
+        }
+        await authChecker(authPayload)
+        const id = req.params.id
+        let result = await getDetailData(id)
+        res.status(200).json({
+            status  : 'OK',
+            data    : result,
+            message : 'Success fetch data'
+        })
+    } catch(error) {
+        var statusCode = 500
+        var messages   = "Something Wrong Happened"
+        if (error.name === 'TokenExpiredError') {
+            messages = 'Token has expired!'
+            statusCode = 401
+        } else if(error.name === 'JsonWebTokenError') {
+            messages = 'Invalid token!'
+            statusCode = 401
+        }
+        res.status(statusCode).json({
+            status  : 'Failed',
+            data    :  error,
             message :  messages
         })
     }
@@ -138,6 +195,7 @@ router.post('/', async(req, res, next)=>{
             res.status(400).json({
                 message : "The creator must be filled"
             })
+            return
         } 
         const insertParams = {
             type: "insert",
